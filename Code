@@ -1,0 +1,62 @@
+import cv2
+import numpy as np
+from stegano import lsb
+from Crypto.Cipher import AES
+from Crypto.Util.Padding import pad, unpad
+from base64 import b64encode, b64decode
+
+# AES Encryption/Decryption
+def encrypt_data(data, key):
+    cipher = AES.new(key, AES.MODE_CBC)
+    encrypted_data = cipher.encrypt(pad(data.encode(), AES.block_size))
+    return cipher.iv + encrypted_data  # Prepend IV for decryption
+
+def decrypt_data(encrypted_data, key):
+    iv = encrypted_data[:16]  # Extract the IV
+    cipher = AES.new(key, AES.MODE_CBC, iv)
+    decrypted_data = unpad(cipher.decrypt(encrypted_data[16:]), AES.block_size)
+    return decrypted_data.decode()
+
+# Function to embed data into an image using LSB steganography
+def embed_data(image_path, data, output_image_path):
+    # Encrypt data first
+    key = b'Sixteen byte key'  # Example AES key (16 bytes for AES-128)
+    encrypted_data = encrypt_data(data, key)
+    
+    # Encode the encrypted data to base64 (for compatibility with image format)
+    encoded_data = b64encode(encrypted_data).decode()
+
+    # Load the image
+    image = cv2.imread(image_path)
+
+    # Use LSB steganography to hide the encoded data in the image
+    stego_image = lsb.hide(image_path, encoded_data)
+
+    # Save the stego image
+    stego_image.save(output_image_path)
+
+# Function to extract data from the image
+def extract_data(image_path, key):
+    # Retrieve the encoded data from the image
+    encoded_data = lsb.reveal(image_path)
+
+    # Decode the base64 encoded data
+    encrypted_data = b64decode(encoded_data)
+
+    # Decrypt the data
+    decrypted_data = decrypt_data(encrypted_data, key)
+    return decrypted_data
+
+# Main flow
+if __name__ == "__main__":
+    # Sample data to hide
+    data = "This is a secret message."
+
+    # Embed the data into the image
+    image_path = "input_image.png"  # Path to your input image
+    output_image_path = "stego_image.png"  # Path to save the stego image
+    embed_data(image_path, data, output_image_path)
+
+    # Extract the data from the stego image
+    extracted_data = extract_data(output_image_path, b'Sixteen byte key')
+    print("Extracted Data:", extracted_data)
